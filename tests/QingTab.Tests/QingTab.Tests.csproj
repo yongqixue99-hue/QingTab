@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net481</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\QingTab\QingTab.csproj" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="UIAutomationClient" />
+    <Reference Include="UIAutomationTypes" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Historical visual/identity experiments stay testable without being
+         linked into the resident 0.2.6 executable. -->
+    <Compile Include="..\..\QingTab\Hooks\ExplorerNativeTabSnapshotCapture.cs" Link="Research\ExplorerNativeTabSnapshotCapture.cs" />
+    <Compile Include="..\..\QingTab\Hooks\ExplorerOpenExperiencePolicy.cs" Link="Research\ExplorerOpenExperiencePolicy.cs" />
+    <Compile Include="..\..\QingTab\Hooks\ExplorerTabActivationLease.cs" Link="Research\ExplorerTabActivationLease.cs" />
+    <Compile Include="..\..\QingTab\Hooks\ExplorerTabDualIdentityPolicy.cs" Link="Research\ExplorerTabDualIdentityPolicy.cs" />
+    <Compile Include="..\..\QingTab\Hooks\ExplorerTabDualIdentitySession.cs" Link="Research\ExplorerTabDualIdentitySession.cs" />
+    <Compile Include="..\..\QingTab\Hooks\ExplorerTabNativeOwnershipLease.cs" Link="Research\ExplorerTabNativeOwnershipLease.cs" />
+    <Compile Include="..\..\QingTab\Hooks\ExplorerTabSelectionSnapshot.cs" Link="Research\ExplorerTabSelectionSnapshot.cs" />
+    <Compile Include="..\..\QingTab\Hooks\ExplorerVisualMaskBoundsCapture.cs" Link="Research\ExplorerVisualMaskBoundsCapture.cs" />
+    <Compile Include="..\..\QingTab\Hooks\ExplorerVisualMaskLease.cs" Link="Research\ExplorerVisualMaskLease.cs" />
+  </ItemGroup>
+</Project>

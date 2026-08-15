@@ -1,0 +1,2 @@
+[DEBUG-025] 0:request-start | 0:target-window-found | 0:window-target-26001E-foreground-26001E | 14:responsive-native | 68:active-tab-command-sent
+[DEBUG-025] 0:request-start | 0:target-window-found | 0:window-target-26001E-foreground-26001E | 0:responsive-native | 38:active-tab-command-sent | 206:active-native-claimed | 891:active-exact-shell-claimed | 903:active-navigate-start | 913:active-navigate-Accepted

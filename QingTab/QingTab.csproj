@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net481</TargetFramework>
+        <UseWindowsForms>true</UseWindowsForms>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <ApplicationIcon>Icon.ico</ApplicationIcon>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <Version>0.2.6</Version>
+        <AssemblyVersion>0.2.6.0</AssemblyVersion>
+        <FileVersion>0.2.6.0</FileVersion>
+        <RootNamespace>QingTab</RootNamespace>
+        <AssemblyName>QingTab</AssemblyName>
+        <Title>轻页 QingTab</Title>
+        <AssemblyTitle>轻页 QingTab</AssemblyTitle>
+        <Product>轻页 QingTab</Product>
+        <Description>让普通文件夹直接在 Windows 11 文件资源管理器新标签页中打开。</Description>
+        <Authors>QingTab contributors</Authors>
+        <Copyright>Copyright © 2025 w4po; © 2026 Yafeiml and contributors; QingTab changes © 2026.</Copyright>
+        <SatelliteResourceLanguages>none</SatelliteResourceLanguages>
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+        <Deterministic>true</Deterministic>
+        <PlatformTarget>AnyCPU</PlatformTarget>
+        <Prefer32Bit>false</Prefer32Bit>
+        <StartupObject>QingTab.Program</StartupObject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Resource Include="Icon.ico"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+        <Reference Include="Microsoft.CSharp" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!--
+          0.2.6 Lite ships only the responsive native pipeline. The removed
+          files remain in the repository as isolated research fixtures and
+          are compiled by QingTab.Tests, but no UIA/overlay implementation is
+          present in the resident executable.
+        -->
+        <Compile Remove="Hooks\ExplorerNativeTabSnapshotCapture.cs" />
+        <Compile Remove="Hooks\ExplorerOpenExperiencePolicy.cs" />
+        <Compile Remove="Hooks\ExplorerTabActivationLease.cs" />
+        <Compile Remove="Hooks\ExplorerTabDualIdentityPolicy.cs" />
+        <Compile Remove="Hooks\ExplorerTabDualIdentitySession.cs" />
+        <Compile Remove="Hooks\ExplorerTabNativeOwnershipLease.cs" />
+        <Compile Remove="Hooks\ExplorerTabSelectionSnapshot.cs" />
+        <Compile Remove="Hooks\ExplorerVisualMaskBoundsCapture.cs" />
+        <Compile Remove="Hooks\ExplorerVisualMaskLease.cs" />
+    </ItemGroup>
+
+</Project>

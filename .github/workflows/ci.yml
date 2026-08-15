@@ -1,0 +1,83 @@
+name: QingTab CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 6.0.x
+
+      - name: Parse PowerShell release scripts
+        shell: powershell
+        run: |
+          $failed = $false
+          $scripts = @(
+            '.\build-release.ps1',
+            '.\scripts\Sign-QingTab.ps1',
+            '.\tests\SigningPipeline.Tests.ps1',
+            '.\tests\Invoke-QingTabDesktopLifecycle.ps1'
+          )
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $script),
+              [ref]$tokens,
+              [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | Format-List
+            }
+          }
+          if ($failed) { throw 'A PowerShell release script contains syntax errors.' }
+
+      - name: Check signing pipeline safety rules
+        shell: powershell
+        run: .\tests\SigningPipeline.Tests.ps1
+
+      - name: Build Release
+        shell: powershell
+        run: |
+          dotnet build .\QingTab.sln -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Release build failed.' }
+
+      - name: Run exactly 206 behavior checks
+        shell: powershell
+        run: |
+          $output = @(& .\tests\QingTab.Tests\bin\Release\net481\QingTab.Tests.exe 2>&1)
+          $output | Write-Host
+          if ($LASTEXITCODE -ne 0 -or $output -notcontains 'PASS: 206 QingTab behavior checks') {
+            throw 'The exact 206-check behavior gate failed.'
+          }
+
+      - name: Run lifecycle idempotency checks
+        shell: powershell
+        run: |
+          $output = @(& .\tests\QingTab.LifecycleTests\bin\Release\net481\QingTab.LifecycleTests.exe 2>&1)
+          $output | Write-Host
+          if ($LASTEXITCODE -ne 0 -or $output -notcontains 'PASS: 23 QingTab lifecycle checks') {
+            throw 'The lifecycle gate failed.'
+          }
+
+      - name: Read-only desktop lifecycle audit
+        shell: powershell
+        run: |
+          .\tests\Invoke-QingTabDesktopLifecycle.ps1 `
+            -Scenario Audit `
+            -CandidateExe .\QingTab\bin\Release\net481\QingTab.exe

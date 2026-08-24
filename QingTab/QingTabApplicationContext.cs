@@ -81,7 +81,8 @@ internal sealed class QingTabApplicationContext : ApplicationContext
 
     private OpenTabIpcResponse OpenTabRequestReceived(string path)
     {
-        if (Volatile.Read(ref _disposed) != 0 || string.IsNullOrWhiteSpace(path))
+        if (Volatile.Read(ref _disposed) != 0
+            || !ShellFolderOpenRequest.ShouldHandleDirectOpen(path))
             return OpenTabIpcResponse.Rejected;
 
         var preferredWindow = CaptureForegroundExplorerWindow();

@@ -15,7 +15,7 @@
 `build-release.ps1 -Sign` 会在打包 ZIP 之前执行以下步骤：
 
 1. Release 构建；
-2. 精确执行 206 项行为检查和 23 项生命周期检查；
+2. 精确执行 218 项行为检查和 23 项生命周期检查；
 3. 使用 SHA-256 Authenticode 签署便携包中的 `QingTab.exe`；
 4. 请求 DigiCert RFC 3161 / SHA-256 时间戳；
 5. 使用 Windows 默认 Authenticode 策略验证签名、信任链和时间戳；

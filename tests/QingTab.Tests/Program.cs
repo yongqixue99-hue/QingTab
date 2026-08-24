@@ -43,6 +43,55 @@ internal static class Program
             "\"C:\\Folder Name\\\\\"",
             ShellFolderOpenRequest.QuoteArgument(@"C:\Folder Name\"));
 
+        CheckTrue(
+            "direct open accepts an absolute drive folder",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(@"C:\Work"));
+        CheckTrue(
+            "direct open repairs and accepts a quoted drive-root artifact",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen("E:" + '"'));
+        CheckTrue(
+            "direct open accepts a UNC folder without probing the network",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(@"\\server\share\folder"));
+        CheckFalse(
+            "Recycle Bin CLSID bypasses QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(
+                "::{645FF040-5081-101B-9F08-00AA002F954E}"));
+        CheckFalse(
+            "Recycle Bin shell alias bypasses QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen("shell:RecycleBinFolder"));
+        CheckFalse(
+            "Control Panel bypasses QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(
+                "::{26EE0668-A00A-44D7-9371-BEB064C98683}"));
+        CheckFalse(
+            "Libraries bypass QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(
+                "::{031E4825-7B94-4DC3-B131-E946B44C8DD5}"));
+        CheckFalse(
+            "relative paths bypass QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(@"folder\child"));
+        CheckFalse(
+            "drive-relative paths bypass QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(@"C:folder"));
+        CheckFalse(
+            "blank targets bypass QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen("  "));
+
+        var recycleBinStartInfo = ExplorerLauncher.CreateStartInfo(
+            "::{645FF040-5081-101B-9F08-00AA002F954E}");
+        CheckTrue(
+            "Recycle Bin native fallback uses explicit Explorer without Shell recursion",
+            recycleBinStartInfo.FileName.EndsWith(
+                @"\explorer.exe",
+                StringComparison.OrdinalIgnoreCase)
+            && recycleBinStartInfo.Arguments
+                == "::{645FF040-5081-101B-9F08-00AA002F954E}"
+            && !recycleBinStartInfo.UseShellExecute);
+        Check(
+            "Recycle Bin shell alias is preserved for native Explorer",
+            "shell:RecycleBinFolder",
+            ExplorerLauncher.CreateStartInfo("shell:RecycleBinFolder").Arguments);
+
         var diagnostics = new DiagnosticHistory(capacity: 2);
         var discardedTrace = diagnostics.Begin(@"C:\Private\first-folder", new IntPtr(101));
         discardedTrace.Mark(OpenTabStage.QueueStarted);

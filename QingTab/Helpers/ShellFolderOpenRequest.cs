@@ -10,6 +10,34 @@ namespace QingTab.Helpers;
 public static class ShellFolderOpenRequest
 {
     /// <summary>
+    /// Returns true only for absolute file-system locations that QingTab may
+    /// safely redirect into an Explorer tab. Virtual Shell parsing names such
+    /// as Recycle Bin, Control Panel and Libraries must remain on Windows'
+    /// native open path.
+    ///
+    /// This is intentionally a syntax-only check: probing Directory.Exists
+    /// would add latency and could block on unavailable UNC locations.
+    /// </summary>
+    public static bool ShouldHandleDirectOpen(string path)
+    {
+        var normalized = NormalizePath(path);
+        if (string.IsNullOrWhiteSpace(normalized))
+            return false;
+
+        if (normalized.Length >= 3
+            && char.IsLetter(normalized[0])
+            && normalized[1] == ':'
+            && IsDirectorySeparator(normalized[2]))
+        {
+            return true;
+        }
+
+        return normalized.Length > 2
+               && IsDirectorySeparator(normalized[0])
+               && IsDirectorySeparator(normalized[1]);
+    }
+
+    /// <summary>
     /// Repairs the command-line parsing artifact produced by a quoted path that
     /// ends in a backslash. For example, Windows parses "E:\" as E:".
     /// A double quote cannot be part of a normal Windows file-system path, so
@@ -69,5 +97,10 @@ public static class ShellFolderOpenRequest
         result.Append('\\', backslashCount * 2);
         result.Append('"');
         return result.ToString();
+    }
+
+    private static bool IsDirectorySeparator(char character)
+    {
+        return character == '\\' || character == '/';
     }
 }

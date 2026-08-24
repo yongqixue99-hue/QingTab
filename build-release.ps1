@@ -24,7 +24,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$expectedBehaviorChecks = 206
+$expectedBehaviorChecks = 218
 $expectedLifecycleChecks = 23
 $solution = Join-Path $PSScriptRoot 'QingTab.sln'
 $project = Join-Path $PSScriptRoot 'QingTab\QingTab.csproj'

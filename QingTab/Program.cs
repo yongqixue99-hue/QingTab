@@ -88,6 +88,18 @@ internal static class Program
         if (!string.IsNullOrWhiteSpace(openTabPath))
         {
             openTabPath = ShellFolderOpenRequest.NormalizePath(openTabPath!);
+            if (!ShellFolderOpenRequest.ShouldHandleDirectOpen(openTabPath!))
+            {
+                if (!ExplorerLauncher.TryOpenFolder(openTabPath!, out var nativeOpenError))
+                {
+                    ErrorLog.Write(
+                        new InvalidOperationException(nativeOpenError),
+                        "native-shell-open-failed");
+                    Environment.ExitCode = 1;
+                }
+                return;
+            }
+
             var readiness = InstanceReadiness.Probe(ObjectNames.ReadyEventName);
             if (readiness != InstanceReadinessState.Missing
                 && OpenTabIpc.TrySend(

@@ -5,18 +5,18 @@
 `build-release.ps1` 现在按固定顺序执行：
 
 1. Release 构建，任何警告或错误由构建日志保留。
-2. 精确核对 `PASS: 206 QingTab behavior checks`。
+2. 精确核对 `PASS: 218 QingTab behavior checks`。
 3. 核对退出、会话隔离、重复释放和 Explorer 重连的 23 项生命周期检查。
 4. 将 `QingTab.exe` 进行 SHA-256 Authenticode 正式签名。
 5. 使用 RFC 3161 服务写入 SHA-256 可信时间戳。
 6. 用 SignTool 和 PowerShell 双重验签，缺签名、签名无效或缺时间戳都会停止发布。
 7. 生成便携包和源码包以及各自的 SHA-256。
-8. 解压源码 ZIP，在独立目录重新构建并再次执行 206 + 23 项检查。
+8. 解压源码 ZIP，在独立目录重新构建并再次执行 218 + 23 项检查。
 9. 生成 Markdown Release 报告和机器可读 JSON manifest。
 
 GitHub 工作流位于：
 
-- `.github/workflows/ci.yml`：每次提交和拉取请求执行构建、206 项检查、23 项生命周期检查和只读桌面审计。
+- `.github/workflows/ci.yml`：每次提交和拉取请求执行构建、218 项检查、23 项生命周期检查和只读桌面审计。
 - `.github/workflows/release.yml`：`v*` 标签触发正式签名 Release 流程，全部通过后只创建草稿 Release，不直接公开。
 
 ## 正式证书前置条件

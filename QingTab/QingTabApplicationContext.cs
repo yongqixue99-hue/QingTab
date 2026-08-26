@@ -214,7 +214,7 @@ internal sealed class QingTabApplicationContext : ApplicationContext
     {
         var version = typeof(QingTabApplicationContext).Assembly.GetName().Version;
         return _diagnostics.BuildReport(
-            version == null ? "0.2.6" : version.ToString(3),
+            version == null ? "0.2.7" : version.ToString(3),
             FolderOpenIntegrationManager.IsEnabled(),
             AutoStartManager.IsEnabled());
     }

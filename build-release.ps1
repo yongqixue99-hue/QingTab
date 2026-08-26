@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$Version = '0.2.6',
+    [string]$Version = '0.2.7',
     [string]$Configuration = 'Release',
     [string]$OutputRoot = (Join-Path $PSScriptRoot 'artifacts'),
     [switch]$Sign,
@@ -18,13 +18,14 @@ param(
     ),
     [string]$ExpectedSignerSubject = $env:QINGTAB_EXPECTED_SIGNER_SUBJECT,
     [string]$ExpectedSignerThumbprint = $env:QINGTAB_EXPECTED_SIGNER_THUMBPRINT,
+    [string]$PreSignedExecutablePath = $env:QINGTAB_PRESIGNED_EXECUTABLE_PATH,
     [switch]$SkipSourceRebuildVerification
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$expectedBehaviorChecks = 218
+$expectedBehaviorChecks = 237
 $expectedLifecycleChecks = 23
 $solution = Join-Path $PSScriptRoot 'QingTab.sln'
 $project = Join-Path $PSScriptRoot 'QingTab\QingTab.csproj'
@@ -133,6 +134,19 @@ if ($declaredVersion -ne $Version)
     throw "Requested package version $Version does not match QingTab.csproj version $declaredVersion."
 }
 
+if ($Sign -and -not [string]::IsNullOrWhiteSpace($PreSignedExecutablePath))
+{
+    throw 'Choose either local -Sign or -PreSignedExecutablePath, never both.'
+}
+if (-not [string]::IsNullOrWhiteSpace($PreSignedExecutablePath))
+{
+    if (-not (Test-Path -LiteralPath $PreSignedExecutablePath -PathType Leaf))
+    {
+        throw "The SignPath-returned executable does not exist: $PreSignedExecutablePath"
+    }
+    $PreSignedExecutablePath = (Resolve-Path -LiteralPath $PreSignedExecutablePath).Path
+}
+
 if (-not (Test-Path -LiteralPath $OutputRoot))
 {
     New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
@@ -167,12 +181,24 @@ $lifecycleSummary = Invoke-CheckExecutable -Executable $lifecycleTestExecutable 
 
 New-Item -ItemType Directory -Path $packageDirectory -Force | Out-Null
 
+$packagedExecutableSource = if ([string]::IsNullOrWhiteSpace($PreSignedExecutablePath))
+{
+    Join-Path $projectOutput 'QingTab.exe'
+}
+else
+{
+    $PreSignedExecutablePath
+}
 $files = @(
-    @{ Source = (Join-Path $projectOutput 'QingTab.exe'); Destination = 'QingTab.exe' },
+    @{ Source = $packagedExecutableSource; Destination = 'QingTab.exe' },
     @{ Source = (Join-Path $projectOutput 'QingTab.exe.config'); Destination = 'QingTab.exe.config' },
     @{ Source = (Join-Path $PSScriptRoot 'README.md'); Destination = 'README.md' },
     @{ Source = (Join-Path $PSScriptRoot 'LICENSE'); Destination = 'LICENSE' },
     @{ Source = (Join-Path $PSScriptRoot 'THIRD-PARTY-NOTICES.md'); Destination = 'THIRD-PARTY-NOTICES.md' },
+    @{ Source = (Join-Path $PSScriptRoot 'PRIVACY.md'); Destination = 'PRIVACY.md' },
+    @{ Source = (Join-Path $PSScriptRoot 'CODE-SIGNING.md'); Destination = 'CODE-SIGNING.md' },
+    @{ Source = (Join-Path $PSScriptRoot 'RELEASE-PROCESS.md'); Destination = 'RELEASE-PROCESS.md' },
+    @{ Source = (Join-Path $PSScriptRoot 'MEMORY-BENCHMARK-0.2.6-B-2026-08-13.md'); Destination = 'MEMORY-BENCHMARK-0.2.6-B-2026-08-13.md' },
     @{ Source = $testReport; Destination = 'TEST-REPORT.md' }
 )
 
@@ -191,6 +217,7 @@ Copy-Item -LiteralPath $uninstallScript.FullName -Destination (Join-Path $packag
 $packagedExecutable = Join-Path $packageDirectory 'QingTab.exe'
 $signingResult = $null
 $signingStatus = 'NOT REQUESTED'
+$signingRequested = [bool]$Sign -or -not [string]::IsNullOrWhiteSpace($PreSignedExecutablePath)
 if ($Sign)
 {
     if (-not (Test-Path -LiteralPath $signingScript -PathType Leaf))
@@ -225,6 +252,39 @@ if ($Sign)
     }
     $signingStatus = 'VALID AUTHENTICODE + TRUSTED TIMESTAMP'
 }
+elseif (-not [string]::IsNullOrWhiteSpace($PreSignedExecutablePath))
+{
+    if (-not (Test-Path -LiteralPath $signingScript -PathType Leaf))
+    {
+        throw "Signing verification script is missing: $signingScript"
+    }
+
+    $expectedFileVersion = "$Version.0"
+    $actualFileVersion = (Get-Item -LiteralPath $packagedExecutable).VersionInfo.FileVersion
+    if ($actualFileVersion -ne $expectedFileVersion)
+    {
+        throw "The SignPath-returned executable has FileVersion $actualFileVersion; expected $expectedFileVersion."
+    }
+
+    $verifyParameters = @{
+        Path = @($packagedExecutable)
+        VerifyOnly = $true
+        TimestampUrl = $TimestampUrl
+        ExpectedSignerSubject = $ExpectedSignerSubject
+        ExpectedSignerThumbprint = $ExpectedSignerThumbprint
+    }
+    $signingResult = @(& $signingScript @verifyParameters)
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw 'SignPath Authenticode or trusted timestamp verification failed.'
+    }
+    $signingResult = $signingResult | Where-Object { $_ -is [psobject] -and $_.PSObject.Properties['Status'] } | Select-Object -Last 1
+    if ($null -eq $signingResult -or $signingResult.Status -ne 'Valid')
+    {
+        throw 'The SignPath verification step did not return a valid signed-file result.'
+    }
+    $signingStatus = 'VALID SIGNPATH AUTHENTICODE + TRUSTED TIMESTAMP'
+}
 
 $exeHash = (Get-FileHash -LiteralPath $packagedExecutable -Algorithm SHA256).Hash
 Set-Content -LiteralPath (Join-Path $packageDirectory 'SHA256SUMS.txt') -Encoding ASCII -Value "$exeHash *QingTab.exe"
@@ -242,7 +302,10 @@ $sourceRootFiles = @(
     'THIRD-PARTY-NOTICES.md',
     'build-release.ps1',
     'icon-preview.png',
-    'CODE-SIGNING.md'
+    'CODE-SIGNING.md',
+    'PRIVACY.md',
+    'RELEASE-PROCESS.md',
+    'MEMORY-BENCHMARK-0.2.6-B-2026-08-13.md'
 )
 foreach ($sourceRootFile in $sourceRootFiles)
 {
@@ -334,7 +397,8 @@ $manifest = [ordered]@{
         sourceRebuild = $sourceRebuildStatus
     }
     signing = [ordered]@{
-        requested = [bool]$Sign
+        requested = $signingRequested
+        source = if (-not [string]::IsNullOrWhiteSpace($PreSignedExecutablePath)) { 'SignPath' } elseif ($Sign) { 'LocalCertificate' } else { $null }
         status = $signingStatus
         signerSubject = if ($null -eq $signingResult) { $null } else { $signingResult.SignerSubject }
         signerThumbprint = if ($null -eq $signingResult) { $null } else { $signingResult.SignerThumbprint }

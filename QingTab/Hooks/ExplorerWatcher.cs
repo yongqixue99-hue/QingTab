@@ -345,6 +345,8 @@ public sealed class ExplorerWatcher : IDisposable
         Debug025Trace? debug025)
     {
         object? createdTabItem = null;
+        nint createdTabHandle = 0;
+        nint[] initialTabHandles = Array.Empty<nint>();
         var keepCreatedTab = false;
         try
         {
@@ -352,7 +354,7 @@ public sealed class ExplorerWatcher : IDisposable
             var foregroundRootAtStart = WinApi.GetAncestor(
                 WinApi.GetForegroundWindow(),
                 WinApi.GA_ROOT);
-            var currentTabs = Helper.GetAllExplorerTabs(targetWindow).ToArray();
+            initialTabHandles = Helper.GetAllExplorerTabs(targetWindow).ToArray();
             if (budget.IsExpired)
                 return OpenTabResult.Failed(OpenTabResultKind.RequestTimedOut);
 
@@ -376,12 +378,12 @@ public sealed class ExplorerWatcher : IDisposable
             var tabHandleTimeout = budget.LimitMilliseconds(2_000);
             if (tabHandleTimeout == 0)
                 return OpenTabResult.Failed(OpenTabResultKind.RequestTimedOut);
-            var newTabHandle = await Helper.ListenForNewExplorerTabAsync(
+            createdTabHandle = await Helper.ListenForNewExplorerTabAsync(
                 targetWindow,
-                currentTabs,
+                initialTabHandles,
                 searchTimeMs: tabHandleTimeout,
                 sleepMs: 5);
-            if (newTabHandle == 0)
+            if (createdTabHandle == 0)
             {
                 return OpenTabResult.Failed(
                     budget.IsExpired
@@ -394,7 +396,7 @@ public sealed class ExplorerWatcher : IDisposable
 
             var registrationStartedAt = Stopwatch.GetTimestamp();
             createdTabItem = await WaitForTabItemAsync(
-                newTabHandle,
+                createdTabHandle,
                 budget,
                 GetShellRegistrationTimeoutMilliseconds(
                     backgroundNavigation: false));
@@ -412,6 +414,19 @@ public sealed class ExplorerWatcher : IDisposable
             trace?.Mark(OpenTabStage.ShellRegistrationFound);
             debug025?.Mark("responsive-shell-found");
 
+            var tabsAfterRegistration = Helper.GetAllExplorerTabs(targetWindow).ToArray();
+            if (!Helper.IsSingleNewExplorerTab(
+                    initialTabHandles,
+                    tabsAfterRegistration,
+                    createdTabHandle))
+            {
+                // We cannot distinguish QingTab's new tab from simultaneous
+                // native/user tab activity without the heavier experimental
+                // UIA identity pipeline. Preserve every tab and fail closed.
+                keepCreatedTab = true;
+                return OpenTabResult.Suppressed(OpenTabResultKind.UserIntervened);
+            }
+
             if (budget.IsExpired)
                 return OpenTabResult.Failed(OpenTabResultKind.RequestTimedOut);
             trace?.Mark(OpenTabStage.NavigationStarted);
@@ -420,9 +435,13 @@ public sealed class ExplorerWatcher : IDisposable
                 path,
                 budget,
                 validateExactIdentityBeforeRetry: () =>
-                    WinApi.IsWindow(newTabHandle)
-                    && WinApi.GetAncestor(newTabHandle, WinApi.GA_ROOT) == targetWindow
-                    && GetTabHandle(createdTabItem) == newTabHandle);
+                    WinApi.IsWindow(createdTabHandle)
+                    && WinApi.GetAncestor(createdTabHandle, WinApi.GA_ROOT) == targetWindow
+                    && GetTabHandle(createdTabItem) == createdTabHandle
+                    && Helper.IsSingleNewExplorerTab(
+                        initialTabHandles,
+                        Helper.GetAllExplorerTabs(targetWindow).ToArray(),
+                        createdTabHandle));
             trace?.Mark(OpenTabStage.NavigationCompleted);
             debug025?.Mark("responsive-navigation-" + navigation.Disposition);
 
@@ -482,7 +501,12 @@ public sealed class ExplorerWatcher : IDisposable
                 {
                     try
                     {
-                        ((dynamic)createdTabItem).Quit();
+                        var currentTabs = Helper.GetAllExplorerTabs(targetWindow).ToArray();
+                        if (Helper.IsSingleNewExplorerTab(
+                                initialTabHandles,
+                                currentTabs,
+                                createdTabHandle))
+                            ((dynamic)createdTabItem).Quit();
                     }
                     catch
                     {

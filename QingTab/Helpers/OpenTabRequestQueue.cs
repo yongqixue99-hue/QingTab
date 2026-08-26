@@ -87,7 +87,7 @@ public sealed class OpenTabRequestQueue
     private readonly object _sync = new();
     private readonly Queue<OpenTabRequest> _requests = new();
     private readonly Dictionary<string, DateTimeOffset> _lastAccepted =
-        new(StringComparer.OrdinalIgnoreCase);
+        new(StringComparer.Ordinal);
 
     public OpenTabRequestQueue(int capacity = 10, TimeSpan? duplicateWindow = null)
     {
@@ -189,7 +189,19 @@ public sealed class OpenTabRequestQueue
 
     private static string GetDedupeKey(OpenTabRequest request)
     {
-        return unchecked((long)request.PreferredWindow) + "|" + NormalizeForComparison(request.Path);
+        var normalized = NormalizeForComparison(request.Path);
+        var isUnc = normalized.Length >= 2
+                    && IsDirectorySeparator(normalized[0])
+                    && IsDirectorySeparator(normalized[1]);
+
+        // A UNC share can expose a case-sensitive Linux/Samba file system.
+        // Preserve its exact case so two distinct folders are never discarded.
+        // Local Explorer paths retain Windows' ordinary case-insensitive
+        // duplicate behavior by using an invariant uppercase key.
+        var comparisonPath = isUnc ? normalized : normalized.ToUpperInvariant();
+        return unchecked((long)request.PreferredWindow)
+               + (isUnc ? "|UNC|" : "|WIN|")
+               + comparisonPath;
     }
 
     private static string NormalizeForComparison(string path)
@@ -206,5 +218,11 @@ public sealed class OpenTabRequestQueue
         }
 
         return normalized.TrimEnd(Path.DirectorySeparatorChar);
+    }
+
+    private static bool IsDirectorySeparator(char character)
+    {
+        return character == Path.DirectorySeparatorChar
+               || character == Path.AltDirectorySeparatorChar;
     }
 }

@@ -24,17 +24,32 @@ public static class ShellFolderOpenRequest
         if (string.IsNullOrWhiteSpace(normalized))
             return false;
 
+        if (normalized.IndexOf('\0') >= 0 || normalized.IndexOf('"') >= 0)
+            return false;
+
         if (normalized.Length >= 3
-            && char.IsLetter(normalized[0])
+            && IsAsciiLetter(normalized[0])
             && normalized[1] == ':'
             && IsDirectorySeparator(normalized[2]))
         {
             return true;
         }
 
-        return normalized.Length > 2
-               && IsDirectorySeparator(normalized[0])
-               && IsDirectorySeparator(normalized[1]);
+        if (normalized.Length <= 2
+            || !IsDirectorySeparator(normalized[0])
+            || !IsDirectorySeparator(normalized[1]))
+            return false;
+
+        // Device namespaces are not UNC folders. Passing one of these to the
+        // Explorer tab bridge can route pipes, volumes or extended Win32 paths
+        // through code that only understands normal file-system locations.
+        if (IsDirectorySeparator(normalized[2]))
+            return false;
+        if ((normalized[2] == '?' || normalized[2] == '.')
+            && (normalized.Length == 3 || IsDirectorySeparator(normalized[3])))
+            return false;
+
+        return true;
     }
 
     /// <summary>
@@ -102,5 +117,11 @@ public static class ShellFolderOpenRequest
     private static bool IsDirectorySeparator(char character)
     {
         return character == '\\' || character == '/';
+    }
+
+    private static bool IsAsciiLetter(char character)
+    {
+        return character >= 'A' && character <= 'Z'
+               || character >= 'a' && character <= 'z';
     }
 }

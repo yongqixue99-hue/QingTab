@@ -87,7 +87,10 @@ public static class WinApi
 
     public static bool IsWindowHasClassName(nint hWnd, string className, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
     {
-        var currentClassName = GetWindowClassName(hWnd, className.Length);
+        // Read the complete class name. A buffer sized only to the expected
+        // value can truncate "CabinetWClassSomething" to "CabinetWClass" and
+        // accidentally accept a non-Explorer window.
+        var currentClassName = GetWindowClassName(hWnd);
         return string.Equals(currentClassName, className, comparison);
     }
 

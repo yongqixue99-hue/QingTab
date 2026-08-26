@@ -24,6 +24,12 @@ public enum OpenTabIpcResponse : byte
 public static class OpenTabIpc
 {
     private const int MaximumRequestLength = 32_767;
+    private const int MaximumClientSilenceMilliseconds = 500;
+    private static readonly Encoding PipeEncoding = new UTF8Encoding(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
+    private static readonly int MaximumRequestByteLength =
+        PipeEncoding.GetMaxByteCount(MaximumRequestLength);
     private static readonly string CurrentPipeName = InstanceObjectNames.Current.PipeName;
 
     public static bool TrySend(string path, int timeoutMilliseconds, out string error)
@@ -166,10 +172,10 @@ public static class OpenTabIpc
                 throw new ObjectDisposedException(nameof(Server));
 
             if (_listenerTask != null) return;
-            _listenerTask = Task.Run(ListenLoop);
+            _listenerTask = Task.Run(ListenLoopAsync);
         }
 
-        private void ListenLoop()
+        private async Task ListenLoopAsync()
         {
             while (Volatile.Read(ref _disposed) == 0)
             {
@@ -181,11 +187,29 @@ public static class OpenTabIpc
                     lock (_serverLock)
                         _activeServer = server;
 
-                    server.WaitForConnection();
+                    await server.WaitForConnectionAsync().ConfigureAwait(false);
                     if (Volatile.Read(ref _disposed) != 0) return;
 
-                    using var reader = new BinaryReader(server, Encoding.UTF8, leaveOpen: true);
-                    var path = reader.ReadString();
+                    var readTask = ReadStringAsync(server, CancellationToken.None);
+                    using var readTimeout = new CancellationTokenSource();
+                    var timeoutTask = Task.Delay(
+                        MaximumClientSilenceMilliseconds,
+                        readTimeout.Token);
+                    var completedTask = await Task.WhenAny(readTask, timeoutTask)
+                        .ConfigureAwait(false);
+                    if (!ReferenceEquals(completedTask, readTask))
+                    {
+                        // PipeStream cancellation is not guaranteed to interrupt
+                        // an already-pending Windows named-pipe read on every
+                        // supported .NET Framework build. Closing this one server
+                        // instance is the deterministic cancellation boundary.
+                        server.Dispose();
+                        ObserveAbandonedServerTask(readTask);
+                        continue;
+                    }
+
+                    readTimeout.Cancel();
+                    var path = await readTask.ConfigureAwait(false);
                     var response = OpenTabIpcResponse.Rejected;
                     if (!string.IsNullOrWhiteSpace(path) && path.Length <= MaximumRequestLength)
                         response = _requestReceived(path);
@@ -201,6 +225,17 @@ public static class OpenTabIpc
                 catch (IOException) when (Volatile.Read(ref _disposed) != 0)
                 {
                     return;
+                }
+                catch (OperationCanceledException) when (Volatile.Read(ref _disposed) == 0)
+                {
+                    // A connected same-user process did not send a complete
+                    // request. Drop only that pipe instance so later folder
+                    // opens can immediately connect to a fresh listener.
+                }
+                catch (IOException) when (Volatile.Read(ref _disposed) == 0)
+                {
+                    // A short-lived Shell client can disappear between connect,
+                    // request and acknowledgement. This is not a resident error.
                 }
                 catch (Exception ex)
                 {
@@ -218,6 +253,81 @@ public static class OpenTabIpc
                     server?.Dispose();
                 }
             }
+        }
+
+        private static async Task<string> ReadStringAsync(
+            PipeStream stream,
+            CancellationToken cancellationToken)
+        {
+            var length = 0;
+            var shift = 0;
+            var oneByte = new byte[1];
+            for (var index = 0; index < 5; index++)
+            {
+                await ReadExactlyAsync(
+                        stream,
+                        oneByte,
+                        0,
+                        1,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                var current = oneByte[0];
+                length |= (current & 0x7F) << shift;
+                if ((current & 0x80) == 0)
+                {
+                    if (length < 0 || length > MaximumRequestByteLength)
+                        throw new IOException("IPC request payload is too large.");
+
+                    var bytes = new byte[length];
+                    await ReadExactlyAsync(
+                            stream,
+                            bytes,
+                            0,
+                            bytes.Length,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    return PipeEncoding.GetString(bytes);
+                }
+
+                shift += 7;
+            }
+
+            throw new IOException("IPC request length prefix is invalid.");
+        }
+
+        private static async Task ReadExactlyAsync(
+            Stream stream,
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken)
+        {
+            var completed = 0;
+            while (completed < count)
+            {
+                var read = await stream.ReadAsync(
+                        buffer,
+                        offset + completed,
+                        count - completed,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (read == 0)
+                    throw new EndOfStreamException("IPC client disconnected before completing its request.");
+                completed += read;
+            }
+        }
+
+        private static void ObserveAbandonedServerTask(Task task)
+        {
+            _ = task.ContinueWith(
+                completed =>
+                {
+                    _ = completed.Exception;
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted
+                | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
 
         public void Dispose()

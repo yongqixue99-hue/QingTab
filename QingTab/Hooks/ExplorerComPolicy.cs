@@ -22,12 +22,16 @@ public static class ExplorerComPolicy
         switch (hresult)
         {
             case unchecked((int)0x80010001): // RPC_E_CALL_REJECTED
+            case unchecked((int)0x80010109): // RPC_E_RETRY
             case unchecked((int)0x8001010A): // RPC_E_SERVERCALL_RETRYLATER
+            case unchecked((int)0x8001010B): // RPC_E_SERVERCALL_REJECTED
                 return ExplorerComFailureKind.Busy;
 
+            case unchecked((int)0x80010006): // RPC_E_CONNECTION_TERMINATED
             case unchecked((int)0x80010108): // RPC_E_DISCONNECTED
             case unchecked((int)0x800401FD): // CO_E_OBJNOTCONNECTED
             case unchecked((int)0x80010007): // RPC_E_SERVER_DIED
+            case unchecked((int)0x80010012): // RPC_E_SERVER_DIED_DNE
             case unchecked((int)0x800706BA): // RPC_S_SERVER_UNAVAILABLE
                 return ExplorerComFailureKind.Disconnected;
 

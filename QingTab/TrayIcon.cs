@@ -264,7 +264,7 @@ public sealed class TrayIcon : IDisposable
     private static void ShowAbout()
     {
         var version = typeof(TrayIcon).Assembly.GetName().Version;
-        var versionText = version == null ? "0.2.6" : version.ToString(3);
+        var versionText = version == null ? "0.2.7" : version.ToString(3);
 
         MessageBox.Show(
             $"轻页 QingTab v{versionText}\n\n" +

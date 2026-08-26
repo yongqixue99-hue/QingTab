@@ -65,6 +65,31 @@ public static class Helper
             sleepMs);
     }
 
+    /// <summary>
+    /// Confirms that the candidate is the only native tab added to an otherwise
+    /// unchanged Explorer frame. This is the lightweight production guard used
+    /// before navigation and before best-effort cleanup; ambiguous concurrent
+    /// user tab activity must fail closed rather than target the wrong tab.
+    /// </summary>
+    public static bool IsSingleNewExplorerTab(
+        IReadOnlyCollection<nint> initialTabs,
+        IReadOnlyCollection<nint> currentTabs,
+        nint candidate)
+    {
+        if (initialTabs == null) throw new ArgumentNullException(nameof(initialTabs));
+        if (currentTabs == null) throw new ArgumentNullException(nameof(currentTabs));
+        if (candidate == 0) return false;
+
+        var initialSet = new HashSet<nint>(initialTabs);
+        var currentSet = new HashSet<nint>(currentTabs);
+        return initialSet.Count == initialTabs.Count
+               && currentSet.Count == currentTabs.Count
+               && currentSet.Count == initialSet.Count + 1
+               && !initialSet.Contains(candidate)
+               && currentSet.Contains(candidate)
+               && initialSet.All(currentSet.Contains);
+    }
+
     public static Process? GetMainExplorerProcess()
     {
         Process? best = null;

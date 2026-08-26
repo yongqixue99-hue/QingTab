@@ -15,7 +15,7 @@
 `build-release.ps1 -Sign` 会在打包 ZIP 之前执行以下步骤：
 
 1. Release 构建；
-2. 精确执行 218 项行为检查和 23 项生命周期检查；
+2. 精确执行 237 项行为检查和 23 项生命周期检查；
 3. 使用 SHA-256 Authenticode 签署便携包中的 `QingTab.exe`；
 4. 请求 DigiCert RFC 3161 / SHA-256 时间戳；
 5. 使用 Windows 默认 Authenticode 策略验证签名、信任链和时间戳；
@@ -41,7 +41,7 @@ QingTab 保持完整 MIT 开源时，还可以申请 SignPath Foundation 的免�
 $env:QINGTAB_SIGNING_CERTIFICATE_THUMBPRINT = '证书的40位SHA-1指纹'
 $env:QINGTAB_EXPECTED_SIGNER_THUMBPRINT = '同一张证书的40位SHA-1指纹'
 $env:QINGTAB_EXPECTED_SIGNER_SUBJECT = '证书中显示的发布者名称'
-.\build-release.ps1 -Version 0.2.6 -OutputRoot .\release-output -Sign
+.\build-release.ps1 -Version 0.2.7 -OutputRoot .\release-output -Sign
 ```
 
 硬件令牌可能在签名时要求输入 PIN，这是正常现象。不要把 PIN 写进脚本或仓库。
@@ -53,41 +53,44 @@ $env:QINGTAB_SIGNING_CERTIFICATE_PATH = 'D:\secure\QingTab-Code-Signing.pfx'
 $env:QINGTAB_SIGNING_CERTIFICATE_PASSWORD = 'PFX密码'
 $env:QINGTAB_EXPECTED_SIGNER_THUMBPRINT = '证书的40位SHA-1指纹'
 $env:QINGTAB_EXPECTED_SIGNER_SUBJECT = '证书中显示的发布者名称'
-.\build-release.ps1 -Version 0.2.6 -OutputRoot .\release-output -Sign
+.\build-release.ps1 -Version 0.2.7 -OutputRoot .\release-output -Sign
 ```
 
 PFX 和密码不能提交到 Git、源码 ZIP、聊天记录或普通网盘。本仓库已忽略 `*.pfx`、`*.p12` 等私钥文件，但仍应把证书保存在工作区之外。
 
-## GitHub Actions 自动签名
+## GitHub Actions：SignPath Foundation（推荐）
 
-`.github/workflows/release.yml` 只接受受保护的 `code-signing` Environment。正式启用前，在 GitHub 仓库设置中：
+`.github/workflows/release.yml` 已改为 SignPath 官方 GitHub 集成，不再要求或接收 PFX。流程是：
 
-1. 创建 Environment：`code-signing`；
-2. 建议配置 Required reviewers，只允许你批准正式签名；
-3. 在该 Environment 中添加 Secret：
-   - `QINGTAB_SIGNING_CERTIFICATE_BASE64`：PFX 文件的 Base64；
-   - `QINGTAB_SIGNING_CERTIFICATE_PASSWORD`：PFX 密码；
-4. 添加 Environment Variables：
-   - `QINGTAB_EXPECTED_SIGNER_SUBJECT`；
-   - `QINGTAB_EXPECTED_SIGNER_THUMBPRINT`；
-   - `QINGTAB_TIMESTAMP_URL`（通常可留空，默认使用 DigiCert 官方地址）。
+1. 在同一个 GitHub Job 中构建未签名的 `QingTab.exe`，执行 237 + 23 项检查；
+2. 使用固定到完整提交 SHA 的 `actions/upload-artifact` 上传这一份 EXE；
+3. 使用固定到完整提交 SHA 的 `SignPath/github-action-submit-signing-request`，把该 GitHub Artifact ID 提交给 SignPath；
+4. 等待 SignPath 审批、HSM 签名和可信时间戳；
+5. 下载签名后的 EXE，再用 Windows SignTool 和 PowerShell 独立验签；
+6. 重新执行全部门禁、源码 ZIP 独立重建、打包、Hash 和报告；
+7. 最多只创建 GitHub 草稿 Release，不自动公开。
 
-生成 Base64 时在证书所在的安全电脑运行：
+申请获批后，在 GitHub `code-signing` Environment 中按 SignPath 提供的信息配置：
 
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes('D:\secure\QingTab-Code-Signing.pfx')) |
-    Set-Clipboard
-```
+- Secret：`SIGNPATH_API_TOKEN`；
+- Variables：
+  - `SIGNPATH_ORGANIZATION_ID`；
+  - `SIGNPATH_PROJECT_SLUG`；
+  - `SIGNPATH_SIGNING_POLICY_SLUG`；
+  - `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`；
+  - `QINGTAB_EXPECTED_SIGNER_SUBJECT`（通常为 `SignPath Foundation`，以获批信息为准）；
+  - `QINGTAB_EXPECTED_SIGNER_THUMBPRINT`（可选；证书轮换时需要同步更新）；
+  - `QINGTAB_TIMESTAMP_URL`（仅供本地验签脚本参数校验，通常可留空）。
 
-GitHub 自动流程会把 PFX 临时写到 Runner 的临时目录，完成或失败后均删除。只有签名、时间戳、检查、源码包重建和 Hash 全部通过后，才会上传工作流产物或创建草稿 Release；不会自动公开发布。
+建议给 `code-signing` Environment 配置 Required reviewers。不要在 GitHub 中创建 `QINGTAB_SIGNING_CERTIFICATE_BASE64`，SignPath Foundation 的私钥始终留在其 HSM 中。
 
-如果证书供应商要求硬件令牌/HSM，默认 GitHub 托管 Runner 无法直接访问你的令牌，应改用受保护的自托管 Windows Runner或供应商提供的云签名 Action。不要为了迁就流水线导出本不应导出的私钥。
+工作流只有在上述 SignPath 参数获批并配置完成后才能真正签名；当前源码中的接入结构不等于文件已经获得签名。
 
 ## 独立验证
 
 ```powershell
 .\scripts\Sign-QingTab.ps1 `
-    -Path .\release-output\QingTab-v0.2.6-portable\QingTab.exe `
+    -Path .\release-output\QingTab-v0.2.7-portable\QingTab.exe `
     -VerifyOnly `
     -ExpectedSignerSubject '发布者名称' `
     -ExpectedSignerThumbprint '40位证书指纹'

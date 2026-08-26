@@ -77,8 +77,23 @@ internal static class Program
                 return;
             }
 
-            TrySignalExit(ObjectNames.ExitEventName);
-            TrySignalExit(LegacyExitEventName);
+            var currentSignalled = TrySignalExit(ObjectNames.ExitEventName);
+            var legacySignalled = TrySignalExit(LegacyExitEventName);
+            var mutexToWaitFor = currentSignalled
+                ? ObjectNames.MutexName
+                : legacySignalled
+                    ? LegacyMutexName
+                    : null;
+            if (mutexToWaitFor != null
+                && !InstanceShutdown.WaitUntilReleased(
+                    mutexToWaitFor,
+                    timeoutMilliseconds: 5_000))
+            {
+                ErrorLog.Write(
+                    new TimeoutException("The QingTab resident did not exit within the bounded wait."),
+                    "exit-resident-timeout");
+                Environment.ExitCode = 1;
+            }
             return;
         }
 
@@ -162,6 +177,8 @@ internal static class Program
             return;
         }
 
+        ErrorLog.TryMigrateLegacyLogs();
+
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, eventArgs) => HandleFatalException(eventArgs.Exception, true);
         AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
@@ -216,20 +233,23 @@ internal static class Program
         return null;
     }
 
-    private static void TrySignalExit(string eventName)
+    private static bool TrySignalExit(string eventName)
     {
         try
         {
             using var existingExitEvent = EventWaitHandle.OpenExisting(eventName);
             existingExitEvent.Set();
+            return true;
         }
         catch (WaitHandleCannotBeOpenedException)
         {
             // No resident instance owns this version of the event.
+            return false;
         }
         catch (UnauthorizedAccessException)
         {
             // Per-user names prevent QingTab from controlling another user.
+            return false;
         }
     }
 

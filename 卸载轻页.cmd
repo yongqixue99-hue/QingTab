@@ -10,7 +10,13 @@ if not exist "%~dp0QingTab.exe" (
 )
 
 "%~dp0QingTab.exe" --exit
-timeout /t 1 /nobreak >nul
+if errorlevel 1 (
+    echo.
+    echo 轻页驻留进程未能在限定时间内完全退出。
+    echo 请保存工作后重试，暂时不要删除程序目录。
+    pause
+    exit /b 1
+)
 "%~dp0QingTab.exe" --uninstall
 if errorlevel 1 (
     echo.
@@ -21,6 +27,6 @@ if errorlevel 1 (
 )
 
 echo.
-echo 轻页已退出，零闪烁接管、开机启动和当前用户状态已经清理。
+echo 轻页已退出，文件夹新标签接管、开机启动和当前用户状态已经清理。
 echo 现在可以关闭此窗口，并手动删除整个程序目录。
 pause

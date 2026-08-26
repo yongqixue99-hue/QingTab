@@ -57,13 +57,13 @@ jobs:
           dotnet build .\QingTab.sln -c Release --nologo
           if ($LASTEXITCODE -ne 0) { throw 'Release build failed.' }
 
-      - name: Run exactly 218 behavior checks
+      - name: Run exactly 237 behavior checks
         shell: powershell
         run: |
           $output = @(& .\tests\QingTab.Tests\bin\Release\net481\QingTab.Tests.exe 2>&1)
           $output | Write-Host
-          if ($LASTEXITCODE -ne 0 -or $output -notcontains 'PASS: 218 QingTab behavior checks') {
-            throw 'The exact 218-check behavior gate failed.'
+          if ($LASTEXITCODE -ne 0 -or $output -notcontains 'PASS: 237 QingTab behavior checks') {
+            throw 'The exact 237-check behavior gate failed.'
           }
 
       - name: Run lifecycle idempotency checks

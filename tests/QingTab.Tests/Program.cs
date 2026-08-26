@@ -52,6 +52,23 @@ internal static class Program
         CheckTrue(
             "direct open accepts a UNC folder without probing the network",
             ShellFolderOpenRequest.ShouldHandleDirectOpen(@"\\server\share\folder"));
+        CheckTrue(
+            "direct open accepts a WSL UNC folder without changing its case",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(
+                @"\\wsl.localhost\Ubuntu\home\User\Project"));
+        CheckFalse(
+            "non-ASCII pseudo drive letters bypass QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(@"中:\资料")
+            || ShellFolderOpenRequest.ShouldHandleDirectOpen(@"é:\Work"));
+        CheckFalse(
+            "extended Win32 device paths bypass QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(@"\\?\C:\Work"));
+        CheckFalse(
+            "named-pipe device paths bypass QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(@"\\.\pipe\QingTab"));
+        CheckFalse(
+            "a UNC prefix without a server name bypasses QingTab",
+            ShellFolderOpenRequest.ShouldHandleDirectOpen(@"\\\"));
         CheckFalse(
             "Recycle Bin CLSID bypasses QingTab",
             ShellFolderOpenRequest.ShouldHandleDirectOpen(
@@ -933,11 +950,17 @@ internal static class Program
         CheckTrue("COM policy classifies call rejection as transient busy",
             ExplorerComPolicy.Classify(unchecked((int)0x80010001)) == ExplorerComFailureKind.Busy
             && ExplorerComPolicy.Classify(unchecked((int)0x8001010A)) == ExplorerComFailureKind.Busy);
+        CheckTrue("COM policy retries every documented retryable server rejection",
+            ExplorerComPolicy.Classify(unchecked((int)0x80010109)) == ExplorerComFailureKind.Busy
+            && ExplorerComPolicy.Classify(unchecked((int)0x8001010B)) == ExplorerComFailureKind.Busy);
         CheckTrue("COM policy classifies dead Explorer connections as permanent disconnects",
             ExplorerComPolicy.Classify(unchecked((int)0x80010108)) == ExplorerComFailureKind.Disconnected
             && ExplorerComPolicy.Classify(unchecked((int)0x800401FD)) == ExplorerComFailureKind.Disconnected
             && ExplorerComPolicy.Classify(unchecked((int)0x80010007)) == ExplorerComFailureKind.Disconnected
             && ExplorerComPolicy.Classify(unchecked((int)0x800706BA)) == ExplorerComFailureKind.Disconnected);
+        CheckTrue("COM policy reconnects every documented dead server connection",
+            ExplorerComPolicy.Classify(unchecked((int)0x80010006)) == ExplorerComFailureKind.Disconnected
+            && ExplorerComPolicy.Classify(unchecked((int)0x80010012)) == ExplorerComFailureKind.Disconnected);
         CheckTrue("COM policy leaves unrelated HRESULTs untouched",
             ExplorerComPolicy.Classify(unchecked((int)0x80004005)) == ExplorerComFailureKind.Other);
         CheckTrue("busy retry delays are short and strictly bounded",
@@ -1167,6 +1190,42 @@ internal static class Program
             && ReferenceEquals(laterRequest, dequeuedThird));
         CheckTrue("queue is empty after draining", requestQueue.Count == 0);
 
+        var originalNativeTabs = new[] { new IntPtr(701), new IntPtr(702) };
+        CheckTrue("one unchanged native tab addition has an exact identity",
+            Helper.IsSingleNewExplorerTab(
+                originalNativeTabs,
+                new[] { new IntPtr(701), new IntPtr(702), new IntPtr(703) },
+                new IntPtr(703)));
+        CheckFalse("two concurrent native tab additions are ambiguous",
+            Helper.IsSingleNewExplorerTab(
+                originalNativeTabs,
+                new[] { new IntPtr(701), new IntPtr(702), new IntPtr(703), new IntPtr(704) },
+                new IntPtr(703)));
+        CheckFalse("a removed original tab makes cleanup unsafe",
+            Helper.IsSingleNewExplorerTab(
+                originalNativeTabs,
+                new[] { new IntPtr(702), new IntPtr(703), new IntPtr(704) },
+                new IntPtr(704)));
+
+        var caseSensitiveUncQueue = new OpenTabRequestQueue(
+            capacity: 3,
+            duplicateWindow: TimeSpan.FromMilliseconds(300));
+        CheckTrue("the first case-sensitive UNC request enters the queue",
+            caseSensitiveUncQueue.Enqueue(new OpenTabRequest(
+                @"\\wsl.localhost\Ubuntu\home\User\Project",
+                new IntPtr(503),
+                receivedAt)) == OpenTabEnqueueResult.Accepted);
+        CheckTrue("case-distinct UNC folders are never collapsed",
+            caseSensitiveUncQueue.Enqueue(new OpenTabRequest(
+                @"\\wsl.localhost\Ubuntu\home\user\project",
+                new IntPtr(503),
+                receivedAt.AddMilliseconds(100))) == OpenTabEnqueueResult.Accepted);
+        CheckTrue("an exact repeated UNC request is still deduplicated",
+            caseSensitiveUncQueue.Enqueue(new OpenTabRequest(
+                @"\\wsl.localhost\Ubuntu\home\User\Project",
+                new IntPtr(503),
+                receivedAt.AddMilliseconds(150))) == OpenTabEnqueueResult.Duplicate);
+
         var inFlightQueue = new OpenTabRequestQueue(
             capacity: 4,
             duplicateWindow: TimeSpan.FromMilliseconds(300));
@@ -1277,6 +1336,33 @@ internal static class Program
                 safeEntry.Contains("Example User")
                 || safeEntry.Contains("Secret Project")
                 || safeEntry.Contains("document.txt"));
+
+            var legacyLogPath = Path.Combine(logTestDirectory, "legacy-error.log");
+            var safeArchiveEntry = ErrorLog.FormatEntry(
+                new InvalidOperationException("not persisted"),
+                new DateTimeOffset(2026, 8, 8, 12, 35, 0, TimeSpan.FromHours(8)),
+                "already-safe");
+            File.WriteAllText(
+                legacyLogPath,
+                "System.Runtime.InteropServices.COMException: Cannot open "
+                + @"C:\Users\Example User\Secret Project"
+                + Environment.NewLine
+                + "   at QingTab.Hooks.ExplorerWatcher.Open()",
+                System.Text.Encoding.UTF8);
+            File.WriteAllText(legacyLogPath + ".1", safeArchiveEntry, System.Text.Encoding.UTF8);
+            var redactedLegacyFiles = ErrorLog.SanitizeLegacyLogs(
+                legacyLogPath,
+                archiveCount: 1,
+                new DateTimeOffset(2026, 8, 8, 12, 36, 0, TimeSpan.FromHours(8)));
+            var migratedLegacyContent = File.ReadAllText(legacyLogPath);
+            CheckTrue("legacy path-bearing logs are replaced exactly once",
+                redactedLegacyFiles == 1
+                && migratedLegacyContent.Contains("Code=legacy-log-redacted")
+                && !migratedLegacyContent.Contains("Example User")
+                && !migratedLegacyContent.Contains("ExplorerWatcher.Open"));
+            Check("already-safe log archives remain unchanged",
+                safeArchiveEntry,
+                File.ReadAllText(legacyLogPath + ".1"));
         }
         finally
         {
@@ -1301,6 +1387,30 @@ internal static class Program
             names.PipeName);
         CheckTrue("another session receives isolated object names", names.MutexName != otherSessionNames.MutexName);
         CheckTrue("another user receives isolated object names", names.MutexName != otherUserNames.MutexName);
+
+        var missingShutdownMutex = @"Local\QingTab.Tests.MissingMutex." + Guid.NewGuid().ToString("N");
+        CheckTrue("exit acknowledgement treats a missing resident as already stopped",
+            InstanceShutdown.WaitUntilReleased(missingShutdownMutex, timeoutMilliseconds: 0));
+
+        var shutdownMutexName = @"Local\QingTab.Tests.ShutdownMutex." + Guid.NewGuid().ToString("N");
+        using (var mutexOwned = new ManualResetEventSlim(false))
+        using (var releaseMutex = new ManualResetEventSlim(false))
+        {
+            var mutexOwner = Task.Run(() =>
+            {
+                using var ownedMutex = new Mutex(true, shutdownMutexName, out _);
+                mutexOwned.Set();
+                releaseMutex.Wait();
+                ownedMutex.ReleaseMutex();
+            });
+            mutexOwned.Wait();
+            CheckFalse("exit acknowledgement times out while the resident still owns its mutex",
+                InstanceShutdown.WaitUntilReleased(shutdownMutexName, timeoutMilliseconds: 30));
+            releaseMutex.Set();
+            CheckTrue("exit acknowledgement succeeds after the resident releases its mutex",
+                InstanceShutdown.WaitUntilReleased(shutdownMutexName, timeoutMilliseconds: 1_000));
+            mutexOwner.Wait(1_000);
+        }
 
         var readyWithArbitraryText = new ExplorerConnectionStatus(
             ExplorerConnectionState.Ready,
@@ -1377,6 +1487,29 @@ internal static class Program
                     error: out _)
                 && rejectedResponse == OpenTabIpcResponse.Rejected);
             CheckTrue("IPC invokes the public request seam once per acknowledged request", ipcCalls == 3);
+        }
+
+        var blockedListenerPipeName = "QingTab.Tests.BlockedListener." + Guid.NewGuid().ToString("N");
+        using (var blockedListenerServer = new OpenTabIpc.Server(
+                   blockedListenerPipeName,
+                   _ => OpenTabIpcResponse.Accepted))
+        using (var stalledClient = new NamedPipeClientStream(
+                   ".",
+                   blockedListenerPipeName,
+                   PipeDirection.InOut,
+                   PipeOptions.Asynchronous))
+        {
+            blockedListenerServer.Start();
+            stalledClient.Connect(1_000);
+            Thread.Sleep(650);
+            CheckTrue("a silent IPC client cannot monopolize the resident listener",
+                OpenTabIpc.TrySend(
+                    blockedListenerPipeName,
+                    @"C:\RecoveredAfterSilentClient",
+                    timeoutMilliseconds: 1_000,
+                    response: out var recoveredResponse,
+                    error: out _)
+                && recoveredResponse == OpenTabIpcResponse.Accepted);
         }
 
         var stalledPipeName = "QingTab.Tests.Stalled." + Guid.NewGuid().ToString("N");

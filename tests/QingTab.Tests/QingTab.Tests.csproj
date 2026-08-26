@@ -15,7 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Historical visual/identity experiments stay testable without being
-         linked into the resident 0.2.6 executable. -->
+         linked into the resident 0.2.7 executable. -->
     <Compile Include="..\..\QingTab\Hooks\ExplorerNativeTabSnapshotCapture.cs" Link="Research\ExplorerNativeTabSnapshotCapture.cs" />
     <Compile Include="..\..\QingTab\Hooks\ExplorerOpenExperiencePolicy.cs" Link="Research\ExplorerOpenExperiencePolicy.cs" />
     <Compile Include="..\..\QingTab\Hooks\ExplorerTabActivationLease.cs" Link="Research\ExplorerTabActivationLease.cs" />

@@ -8,9 +8,9 @@
         <LangVersion>latest</LangVersion>
         <ApplicationIcon>Icon.ico</ApplicationIcon>
         <ApplicationManifest>app.manifest</ApplicationManifest>
-        <Version>0.2.6</Version>
-        <AssemblyVersion>0.2.6.0</AssemblyVersion>
-        <FileVersion>0.2.6.0</FileVersion>
+        <Version>0.2.7</Version>
+        <AssemblyVersion>0.2.7.0</AssemblyVersion>
+        <FileVersion>0.2.7.0</FileVersion>
         <RootNamespace>QingTab</RootNamespace>
         <AssemblyName>QingTab</AssemblyName>
         <Title>轻页 QingTab</Title>
@@ -38,7 +38,7 @@
 
     <ItemGroup>
         <!--
-          0.2.6 Lite ships only the responsive native pipeline. The removed
+          0.2.7 Lite ships only the responsive native pipeline. The removed
           files remain in the repository as isolated research fixtures and
           are compiled by QingTab.Tests, but no UIA/overlay implementation is
           present in the resident executable.

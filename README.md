@@ -6,7 +6,7 @@ Windows 11 的文件资源管理器已经有标签页了，但文件夹选项仍
 
 轻页只改普通打开。Win + E、任务栏上的资源管理器、右键“在新窗口中打开”和“在新标签页中打开”都照旧。
 
-当前候选版本：`0.2.6 Lite`
+当前候选版本：`0.2.7 Lite`
 
 ## 实际效果
 
@@ -16,17 +16,17 @@ Windows 11 的文件资源管理器已经有标签页了，但文件夹选项仍
 
 普通打开文件夹后，Windows 又弹出一扇资源管理器窗口。连续打开几个文件夹，任务栏和桌面很快就会堆满窗口。
 
-![未使用轻页时弹出新的资源管理器窗口](media/demos/without-qingtab-new-window.gif)
+![未使用轻页时弹出新的资源管理器窗口](https://raw.githubusercontent.com/yongqixue99-hue/QingTab/main/media/demos/without-qingtab-new-window.gif)
 
 ### 开启轻页
 
 同样的操作会在当前资源管理器里增加一个标签。
 
-![普通打开文件夹进入新标签](media/demos/open-folder-new-tab.gif)
+![普通打开文件夹进入新标签](https://raw.githubusercontent.com/yongqixue99-hue/QingTab/main/media/demos/open-folder-new-tab.gif)
 
 连续打开三个文件夹，标签从一个增加到四个，期间没有先创建一扇用于中转的新窗口。
 
-![从一个标签连续增加到四个标签](media/demos/one-to-four-tabs.gif)
+![从一个标签连续增加到四个标签](https://raw.githubusercontent.com/yongqixue99-hue/QingTab/main/media/demos/one-to-four-tabs.gif)
 
 ## 当前功能和轻量表现
 
@@ -45,20 +45,20 @@ Windows 11 的文件资源管理器已经有标签页了，但文件夹选项仍
 
 | 项目 | 实测数据 | 说明 |
 |---|---:|---|
-| `QingTab.exe` | **117248 字节，约 0.11 MB** | 主程序本体 |
-| 当前便携 ZIP | **约 0.07 MB** | 下载文件大小 |
-| 当前便携包解压后 | **约 0.13 MB** | 包含程序、说明、许可、校验值和卸载脚本 |
+| `QingTab.exe` | **125440 字节，约 0.12 MB** | 0.2.7 主程序本体 |
+| 当前便携 ZIP | **约 0.09 MB** | 下载文件大小 |
+| 当前便携包解压后 | **约 0.15 MB** | 包含程序、说明、许可、校验值和卸载脚本 |
 | 程序独占的常驻物理内存 | **中位数约 9.70 MB** | 这部分内存只归轻页使用 |
 | 总工作集 | **中位数约 44.39 MB** | 包含 Windows、.NET 和 WinForms 的共享页面，不全是轻页独占 |
 | 启动到可服务状态 | **中位数 609 ms** | 5 轮独立启动，范围 485–3209 ms，第一轮包含冷缓存 |
 | 空闲驻留稳定性 | **未发现持续上升** | 3 分钟观察中，内存、句柄、线程和界面对象均未持续增长 |
-| 行为检查 | **218 项全部通过** | 包含回收站、控制面板、库和 UNC 分流检查 |
+| 行为检查 | **237 项全部通过** | 包含特殊位置分流、WSL、休眠重连、IPC 和退出检查 |
 
-主程序约 `0.11 MB`，程序独占的常驻物理内存约 `9.7 MB`。轻页没有服务、驱动、Explorer 注入、全局键鼠钩子、遥测和自动更新，常驻时只保留托盘与打开新标签需要的部分。
+主程序约 `0.12 MB`，既有基准中程序独占的常驻物理内存约 `9.7 MB`。轻页没有服务、驱动、Explorer 注入、全局键鼠钩子、遥测和自动更新，常驻时只保留托盘与打开新标签需要的部分。
 
 Explorer 创建标签后，还要加载文件列表、图标和 Shell 扩展。标签很多或连续打开文件夹时，可能短暂出现“此电脑”。之前试过用遮罩盖住这段过渡，实机等待更明显，所以当前版本保留了 Explorer 自己的加载过程。
 
-完整测试口径见 [`MEMORY-BENCHMARK-0.2.6-B-2026-08-13.md`](MEMORY-BENCHMARK-0.2.6-B-2026-08-13.md)。体积、内存和启动数据来自当前 0.2.6 候选版本与本机测试，不代表每台电脑都会得到完全相同的数据。
+完整测试口径见 [`MEMORY-BENCHMARK-0.2.6-B-2026-08-13.md`](MEMORY-BENCHMARK-0.2.6-B-2026-08-13.md)。内存和启动数据来自 0.2.6 基准；0.2.7 没有加入新的常驻服务、UI 自动化或遮罩模块。不同电脑的实际数据会有波动。
 
 ## 哪些操作会进入新标签
 
@@ -139,13 +139,13 @@ Explorer 暂时繁忙、标签创建失败或导航失败时，轻页会调用 W
 构建机需要 Windows 和 .NET SDK 6 或更高版本。程序目标框架为 `.NET Framework 4.8.1`，支持 Windows 11 22H2（Build 22621）或更高版本。
 
 ```powershell
-.\build-release.ps1 -Version 0.2.6
+.\build-release.ps1 -Version 0.2.7
 ```
 
 正式发行流程支持 SHA-256 Authenticode、RFC 3161 可信时间戳、签名后验证和证书指纹固定。
 
 ```powershell
-.\build-release.ps1 -Version 0.2.6 -OutputRoot .\release-output -Sign
+.\build-release.ps1 -Version 0.2.7 -OutputRoot .\release-output -Sign
 ```
 
 证书私钥不会写入源码。证书存储区/PFX 配置、GitHub `code-signing` Environment 和验证方法见 [`CODE-SIGNING.md`](CODE-SIGNING.md)。没有受信任代码签名证书时，普通构建只能用于开发验证，不能宣传为“已验证发布者”。

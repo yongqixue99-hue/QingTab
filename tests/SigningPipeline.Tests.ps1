@@ -51,5 +51,12 @@ Assert-True ($workflowText -match 'QINGTAB_EXPECTED_SIGNER_THUMBPRINT') 'The rel
 Assert-True ($workflowText -match 'actions/checkout@[0-9a-f]{40}') 'Release checkout must be pinned to a full commit SHA.'
 Assert-True ($workflowText -match 'actions/setup-dotnet@[0-9a-f]{40}') 'Release .NET setup must be pinned to a full commit SHA.'
 Assert-True ($workflowText -match 'actions/upload-artifact@[0-9a-f]{40}') 'Release artifact upload must be pinned to a full commit SHA.'
+Assert-True ($workflowText -match 'SignPath/github-action-submit-signing-request@[0-9a-f]{40}') 'The SignPath submission action must be pinned to a full commit SHA.'
+Assert-True ($workflowText -match 'github-artifact-id:\s*\$\{\{\s*steps\.[^.]+\.outputs\.artifact-id\s*\}\}') 'SignPath must receive the exact unsigned artifact produced by this GitHub run.'
+Assert-True ($workflowText -match 'SIGNPATH_API_TOKEN' -and $workflowText -match 'SIGNPATH_ORGANIZATION_ID') 'The workflow must use SignPath Foundation connector credentials instead of a PFX.'
+Assert-True ($workflowText -notmatch 'QINGTAB_SIGNING_CERTIFICATE_BASE64') 'A SignPath Foundation workflow must never request an exportable PFX secret.'
+Assert-True ($releaseText -match 'PreSignedExecutablePath' -and $releaseText -match 'VerifyOnly') 'A SignPath-returned executable must be independently verified before packaging.'
+Assert-True ($releaseText -match "'PRIVACY\.md'" -and $releaseText -match "'RELEASE-PROCESS\.md'") 'Portable and source packages must include the documentation linked by README.'
+Assert-True ($releaseText -match "'MEMORY-BENCHMARK-0\.2\.6-B-2026-08-13\.md'") 'The packaged README memory-baseline link must resolve locally.'
 
 Write-Output "PASS: $checks QingTab signing pipeline checks"

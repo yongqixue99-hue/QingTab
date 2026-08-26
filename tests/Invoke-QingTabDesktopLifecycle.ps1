@@ -23,9 +23,9 @@ function Get-CandidateInfo
     }
     $resolved = (Resolve-Path -LiteralPath $Executable).Path
     $item = Get-Item -LiteralPath $resolved
-    if ($item.VersionInfo.FileVersion -ne '0.2.6.0')
+    if ($item.VersionInfo.FileVersion -ne '0.2.7.0')
     {
-        throw "This harness requires QingTab 0.2.6.0, found $($item.VersionInfo.FileVersion)."
+        throw "This harness requires QingTab 0.2.7.0, found $($item.VersionInfo.FileVersion)."
     }
 
     [pscustomobject]@{

@@ -150,6 +150,10 @@ Explorer 暂时繁忙、标签创建失败或导航失败时，轻页会调用 W
 
 证书私钥不会写入源码。证书存储区/PFX 配置、GitHub `code-signing` Environment 和验证方法见 [`CODE-SIGNING.md`](CODE-SIGNING.md)。没有受信任代码签名证书时，普通构建只能用于开发验证，不能宣传为“已验证发布者”。
 
+## 社区
+
+QingTab 认可并支持 [LINUX DO](https://linux.do/) 社区，感谢社区为开源项目提供交流和分享空间。
+
 ## Code signing policy
 
 QingTab 已申请加入 SignPath Foundation 的开源代码签名计划。在申请获批并完成可验证构建接入前，QingTab 发布文件**不应被视为已由 SignPath Foundation 签名**。
